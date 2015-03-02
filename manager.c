@@ -6,9 +6,14 @@ void parser ()
   char *s, buff[256];
   FILE *fp = fopen (CONFIG, "r");
   int read_count =0;
-  int id=0,delay=0,drop_prob=0;
+  int id=0,delay=0,drop_prob=0,share=0,time=0;
+  char filename[50];
   
   memset(&basic_config, -1, sizeof(basic_config));
+  for(int i=0;i<25;i++){
+    basic_config.node_config[i].file_num =0;
+    basic_config.node_config[i].init_num =0;
+  }
   
   if (fp == NULL)
     {
@@ -22,7 +27,7 @@ void parser ()
       /* Skip blank lines and comments */
       if (buff[0] == '\n' || buff[0] == '#')
 	continue;
-
+      int i;
       switch(read_count){
       case 0:
 	// Read number of Nodes.
@@ -37,11 +42,11 @@ void parser ()
       case 2:
 	// Scan node data
 	read_count++;
-	int i =0;
-	while(id!= -1) {
+	 i =0;
+	while(1) {
 	  //	  printf("stuck");	  
 	  sscanf(buff, "%d %d %d", &id, &delay, &drop_prob);
-	  if(id == -1) continue;
+	  if(id == -1) break;
 
 	  basic_config.node_config[i].node_id = id;
 	  basic_config.node_config[i].delay = delay;
@@ -51,11 +56,47 @@ void parser ()
 	}
 	break;
       case 3:
+	read_count++;
+	id =0;
+	while(id!= -1) {
 	//read file information
+	  sscanf(buff, "%d %s", &id,filename);
+
+	  if(id == -1) continue;
+	  int index = basic_config.node_config[id].init_num;
+
+	  memcpy(basic_config.node_config[id].initfiles[index].filename, filename,50);
+	  basic_config.node_config[id].init_num++;
+	  
+	  fgets (buff, sizeof buff, fp);
+
+	}
 	break;
       case 4:
-	//read download tasks
+
+	read_count++;
+	id =0;
+	while(id!= -1) {
+	  printf("here");
+	//read file information
+	  sscanf(buff, "%d %s %d %d", &id,filename, &time, &share);
+	  printf("\ninit %d %s %d %d\n", id, filename, time, share);
+	  if(id == -1) continue;
+	
+	  strncpy(basic_config.node_config[id].files[basic_config.node_config[id].file_num].filename, filename,50);
+	  basic_config.node_config[id].files[basic_config.node_config[id].file_num].starttime = time;
+	  basic_config.node_config[id].files[basic_config.node_config[id].file_num].share = share;
+
+	  basic_config.node_config[id].file_num++;
+	  
+	  fgets (buff, sizeof buff, fp);
+	}
+
+
 	break;
+	
+	//read download tasks
+
       }
     }
   /* Close file */
@@ -180,7 +221,7 @@ void spawn_client(int node_id)
   newfd = accept (socketfd, (struct sockaddr*)NULL, NULL);
   printf("\nGot incoming connection\n");
 
-  char msg[100] = {0};
+  char msg[1000] = {0};
   struct config_msg_pkt_t *ptr = (struct config_msg_pkt_t*)msg;
 
   ptr->node_config.node_id = htonl(basic_config.node_config[node_id].node_id);
@@ -192,7 +233,7 @@ void spawn_client(int node_id)
   // printf("\nsending =%d - %d - %d - %d", ntohl(ptr->node_config.node_id),  ntohl(ptr->node_config.delay),  ntohl(ptr->node_config.drop_probability), ntohl( ptr->tracker_port));
   
   
-  send(newfd, (void*)msg, 100, 0);
+  send(newfd, (void*)msg, 1000, 0);
 
   close(newfd);
   close(socketfd);
@@ -201,24 +242,23 @@ void spawn_client(int node_id)
 int main()
 {
 
-  int i;
+  int i,j;
   parser();
 
-  /*
-  printf("\n %d,%d", basic_config.number_of_nodes, basic_config.timeout);
-
-  for(i=0;i<basic_config.number_of_nodes;i++)
-    printf("\n %d-%d-%d", basic_config.node_config[i].node_id,  basic_config.node_config[i].delay,  basic_config.node_config[i].drop_probability);
-
-  */
-  spawn_tracker();
+  
+  for(i=0;i<basic_config.number_of_nodes;i++){
+    for(j=0;j<basic_config.node_config[i].file_num;j++)
+      printf("\n%d-%s\n",i, basic_config.node_config[i].files[j].filename);
+  }
+    
+  //spawn_tracker();
 
 
   for(i=0;i<basic_config.number_of_nodes;i++){
     if(basic_config.node_config[i].node_id == -1)
       break;
 
-    spawn_client(i);
+    //spawn_client(i);
     
     }
   

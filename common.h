@@ -20,12 +20,29 @@
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 
+#define MAX_FILES 10
+
+struct file_info_t {
+  char filename[50];
+};
+
+struct file_share_t {
+
+  char filename[50];
+  int starttime;
+  int share;
+   
+};
+
 struct node_config_t {
 
   int node_id;
   int delay;
   int drop_probability;
-  
+  int file_num;
+  int init_num;
+  struct file_info_t  initfiles[10];
+  struct file_share_t files[10]; 
 };
 
 struct config_msg_pkt_t {
