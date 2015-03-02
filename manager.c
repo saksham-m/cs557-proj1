@@ -77,10 +77,8 @@ void parser ()
 	read_count++;
 	id =0;
 	while(id!= -1) {
-	  printf("here");
 	//read file information
 	  sscanf(buff, "%d %s %d %d", &id,filename, &time, &share);
-	  printf("\ninit %d %s %d %d\n", id, filename, time, share);
 	  if(id == -1) continue;
 	
 	  strncpy(basic_config.node_config[id].files[basic_config.node_config[id].file_num].filename, filename,50);
@@ -88,7 +86,6 @@ void parser ()
 	  basic_config.node_config[id].files[basic_config.node_config[id].file_num].share = share;
 
 	  basic_config.node_config[id].file_num++;
-	  
 	  fgets (buff, sizeof buff, fp);
 	}
 
@@ -221,19 +218,25 @@ void spawn_client(int node_id)
   newfd = accept (socketfd, (struct sockaddr*)NULL, NULL);
   printf("\nGot incoming connection\n");
 
-  char msg[1000] = {0};
+  char msg[1500] = {0};
   struct config_msg_pkt_t *ptr = (struct config_msg_pkt_t*)msg;
 
+  /*
   ptr->node_config.node_id = htonl(basic_config.node_config[node_id].node_id);
   ptr->node_config.delay = htonl(basic_config.node_config[node_id].delay);
   ptr->node_config.drop_probability = htonl(basic_config.node_config[node_id].drop_probability);
+
+  */
+
+  memcpy(&ptr->node_config, &basic_config.node_config[node_id], sizeof(struct node_config_t));
+  
   ptr->tracker_port = htonl(basic_config.tracker_port);
 
   
   // printf("\nsending =%d - %d - %d - %d", ntohl(ptr->node_config.node_id),  ntohl(ptr->node_config.delay),  ntohl(ptr->node_config.drop_probability), ntohl( ptr->tracker_port));
   
   
-  send(newfd, (void*)msg, 1000, 0);
+  send(newfd, (void*)msg, 1500, 0);
 
   close(newfd);
   close(socketfd);
@@ -245,20 +248,20 @@ int main()
   int i,j;
   parser();
 
-  
+  /*
   for(i=0;i<basic_config.number_of_nodes;i++){
     for(j=0;j<basic_config.node_config[i].file_num;j++)
       printf("\n%d-%s\n",i, basic_config.node_config[i].files[j].filename);
   }
-    
-  //spawn_tracker();
+  */
+  spawn_tracker();
 
 
   for(i=0;i<basic_config.number_of_nodes;i++){
     if(basic_config.node_config[i].node_id == -1)
       break;
-
-    //spawn_client(i);
+    
+    spawn_client(i);
     
     }
   
