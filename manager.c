@@ -62,6 +62,11 @@ void parser ()
 	//read file information
 	  sscanf(buff, "%d %s", &id,filename);
 
+	  for(i=0;i<50;i++)
+	    if(filename[i] == '/')
+	      filename[i] = '_';
+
+	  
 	  if(id == -1) continue;
 	  int index = basic_config.node_config[id].init_num;
 
@@ -80,7 +85,13 @@ void parser ()
 	//read file information
 	  sscanf(buff, "%d %s %d %d", &id,filename, &time, &share);
 	  if(id == -1) continue;
-	
+
+	  for(i=0;i<50;i++){
+	    if(filename[i] == '/'){
+	      filename[i] = '_';
+	    }
+	  }
+
 	  strncpy(basic_config.node_config[id].files[basic_config.node_config[id].file_num].filename, filename,50);
 	  basic_config.node_config[id].files[basic_config.node_config[id].file_num].starttime = time;
 	  basic_config.node_config[id].files[basic_config.node_config[id].file_num].share = share;
@@ -151,7 +162,7 @@ void spawn_tracker()
   listen (socketfd, 1);
 
   newfd = accept (socketfd, (struct sockaddr*)NULL, NULL);
-  printf("\nGot incoming connection\n");
+  //  printf("\nGot incoming connection\n");
   char msg[10] = {0};
   recv (newfd, msg, sizeof(msg), 0);
   // printf("\nstring = %s\n", msg);
@@ -216,11 +227,10 @@ void spawn_client(int node_id)
   listen (socketfd, 1);
 
   newfd = accept (socketfd, (struct sockaddr*)NULL, NULL);
-  printf("\nGot incoming connection\n");
+  //printf("\nGot incoming connection\n");
 
   char msg[1500] = {0};
   struct config_msg_pkt_t *ptr = (struct config_msg_pkt_t*)msg;
-
   /*
   ptr->node_config.node_id = htonl(basic_config.node_config[node_id].node_id);
   ptr->node_config.delay = htonl(basic_config.node_config[node_id].delay);
