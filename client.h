@@ -7,6 +7,7 @@
 
 struct local_node_config_t{
   int tracker_port;
+  int timeout;
   struct node_config_t node_config;
 };
 

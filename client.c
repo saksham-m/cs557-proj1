@@ -91,6 +91,8 @@ void recv_config(int p)
   node_config.node_config.drop_probability = ntohl(ptr->node_config.drop_probability);
   */
   node_config.tracker_port = ntohl(ptr->tracker_port);
+  node_config.timeout = ptr->timeout;
+
   memcpy(&node_config.node_config, &ptr->node_config, sizeof(struct node_config_t));
   //  printf("\n%d - %d - %d - %d - %s", node_config.node_config.node_id,  node_config.node_config.delay,  node_config.node_config.drop_probability,  node_config.tracker_port, node_config.node_config.initfiles[0].filename);
 
@@ -141,8 +143,6 @@ void recv_config(int p)
 void accept_file_req(int index, char *msg, char*msg2, int seed)
 {
   
-  printf("\nid=%d\n", node_config.node_config.node_id);
-
   struct client_pkt_t* ptr, *ptr2;
   struct stat st;
   char outbuf[150];
@@ -161,8 +161,7 @@ void accept_file_req(int index, char *msg, char*msg2, int seed)
     ptr = (struct client_pkt_t*)msg;
     //Send out file segments
     //    printf("123,%d\n",errno);
-    printf("type= %d", ptr->msg_type);
-
+   
     if(ptr->msg_type == SEG_REQ){
       ptr2 = (struct client_pkt_t*)msg2;
       ptr2->node_id = node_config.node_config.node_id;
@@ -221,6 +220,7 @@ void accept_file_req(int index, char *msg, char*msg2, int seed)
       ptr2 = (struct client_pkt_t*)msg2;
       ptr2->msg_type = FILE_RESP;
       ptr2->type = seed;
+      ptr2->node_id = node_config.node_config.node_id;
 
       sprintf(outbuf, "From %d    FILE_REQ - %s - %d", ptr->node_id, node_config.node_config.files[index].filename, ptr->seg_num);
       
@@ -268,6 +268,8 @@ int get_group_data(int index)
 {
   //send file stuff to tracker and recieve group data
 
+
+  
   char msg[1500]= {0};
   char msg2[1500]= {0};
   int i=0,len=0;
@@ -280,6 +282,7 @@ int get_group_data(int index)
   struct group_assign_pkt_t* rsp;
   int flag = 0;
   FILE *file_write;
+  int cnt = 0,f=0,f2=0;
   
   char outbuf[50];
   
@@ -298,7 +301,6 @@ int get_group_data(int index)
   
   struct file_data_t file_data;
   memset(&file_data, 0, sizeof(file_data));
-
 
 
  top:
@@ -327,7 +329,7 @@ int get_group_data(int index)
     //SEED if already have file
     for(i=0;i<MAX_FILES;i++){
       if(strncmp( node_config.node_config.files[index].filename,  node_config.node_config.initfiles[i].filename,32) == 0){
-       	printf("\nseeding\n");
+
 	ptr2->type =3;
 	memset(&file_data, 1, sizeof(file_data));
       }
@@ -336,7 +338,6 @@ int get_group_data(int index)
   
   len = sendto(udpfd, (void *)msg, 1500, 0, (struct sockaddr *)&serverIp, sizeof(struct sockaddr_in));
 
-  printf("\nsendlen = %d", len);
 
   fflush(stdout);
   sprintf(outbuf, "To T    GROUP_SHOW_INTEREST - %s", node_config.node_config.files[index].filename);
@@ -384,6 +385,7 @@ int get_group_data(int index)
        
        struct client_pkt_t* pkt = (struct client_pkt_t*)msg2;
        pkt-> msg_type = SEG_REQ;
+       pkt-> node_id = node_config.node_config.node_id;
        memset(&serverIp, '0', sizeof(serverIp));
        
        serverIp.sin_family = AF_INET;
@@ -425,17 +427,22 @@ int get_group_data(int index)
 	 }
        }
     }
-    int cnt = 0;
+ 
     for(int req_cnt=0;req_cnt<8;req_cnt++){
       cnt =0;
+      f=0;
       //      printf("\nlooping\n");
       while(cnt<file_data.seg){
-	if(file_data.fdat[cnt].have == 0){
+	if(file_data.fdat[cnt].have == 0 && file_data.fdat[cnt].id!=0){
+	  f=1;
+
+	  f2=0;
 	  //send req
 	  memset(msg2,0,1500);
 	  
 	  struct client_pkt_t* pkt = (struct client_pkt_t*)msg2;
 	  pkt-> msg_type = FILE_REQ;
+	  pkt-> node_id = node_config.node_config.node_id;
 	  pkt->seg_num = cnt;
 	  memset(&serverIp, '0', sizeof(serverIp));
 	  
@@ -444,7 +451,7 @@ int get_group_data(int index)
 	      serverIp.sin_family = AF_INET;
 	      serverIp.sin_addr.s_addr = group_data.node_data[i].node_ip;
 	      serverIp.sin_port = group_data.node_data[i].node_port;
-	      
+	      break;
 	    }
 	  }
 	  
@@ -452,7 +459,7 @@ int get_group_data(int index)
 	  //printf("\n%d,%d,%d\n",ntohs(serverIp.sin_port)m, cnt, file_data.fdat[cnt].id);
 	  len =  sendto(udpfd, (void *)msg2, 1500, 0, (struct sockaddr *)&serverIp, sizeof(struct sockaddr_in));
 
-	  sprintf(outbuf, "To %d    FILE_REQ - %s - %d", pkt->node_id, node_config.node_config.files[index].filename, cnt);
+	  sprintf(outbuf, "To %d    FILE_REQ - %s - %d", group_data.node_data[i].node_id, node_config.node_config.files[index].filename, cnt);
 
 	  fprintf( client_out,"%s\n", outbuf);
 	  //printf("snd req=%d,err= %d\n", len,errno);
@@ -488,10 +495,21 @@ int get_group_data(int index)
 	}
 	cnt++;
       }
+      if (!f){
+
+	if(f2 == 4){
+	  return -1;
+	}
+	f2++;
+	sleep(node_config.timeout);
+
+	goto top;
+      }
     }
     for(i=0;i<file_data.seg;i++){
       if (file_data.fdat[i].have ==0){
-	printf("\nNot complete. Top\n");
+	//	printf("\nNot complete. Top\n");
+
 	goto top;
       }
     }
@@ -501,10 +519,27 @@ int get_group_data(int index)
   }
   else {
     // Seed. Wait for request
-
+    struct timeval tv;
+    fd_set readfds;
+    int rv;
+    
     while(1){
       memset(msg,0,1500);
       memset(msg2,0,1500);
+
+      tv.tv_sec = 30;
+      tv.tv_usec = 0;
+      
+      FD_ZERO(&readfds); 
+      FD_SET(udpfd, &readfds);
+
+      rv = select(udpfd+1, &readfds, NULL, NULL, &tv);
+
+      if(rv == 0) {
+	fflush(stdout);
+	exit (0);
+      }
+      
       len = recvfrom(udpfd, (void*)msg,1500 ,0, (struct sockaddr *)&serverIp, &addrlen);
       //printf("seed rcv=%d from %d\n", len,ntohs(serverIp.sin_port));
       fflush(stdout);

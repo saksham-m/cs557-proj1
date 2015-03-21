@@ -50,6 +50,7 @@ struct node_config_t {
 struct config_msg_pkt_t {
 
   int tracker_port;
+  int timeout;
   struct node_config_t node_config;
     
 };

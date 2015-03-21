@@ -23,7 +23,7 @@ int respond_query(struct sockaddr_in adr_inet, char *msg, char *msg2)
   //  getsockname(clientfd, (struct sockaddr *)&adr_inet, &len_inet);
 
 
-  printf("\nincoming\n");
+  //  printf("\nincoming\n");
   
   struct group_interest_preamble_t* ptr = (struct group_interest_preamble_t*)msg;
 
@@ -206,29 +206,51 @@ int main(int argc, char *argv[])
   char rsp[1500] = {0};
 
   
-  int len;
+  int len,rv;
   struct sockaddr_in remaddr;
   socklen_t addrlen = sizeof(remaddr);
 
+  struct timeval tv;
+
+  fd_set readfds;
+ 
+  
   while(1){
     memset(msg,0,1500);
     memset(rsp,0,1500);
-  
-    len =recvfrom(udpfd, (void*)msg, 1500 ,0, (struct sockaddr *)&remaddr, &addrlen);
+    
+    tv.tv_sec = 30;
+    tv.tv_usec = 0;
+    
+    FD_ZERO(&readfds); 
+    FD_SET(udpfd, &readfds);
+    
+    rv = select(udpfd+1, &readfds, NULL, NULL, &tv);
 
-    //    printf("\t\t%d", ntohs(remaddr.sin_port));
+    if(rv == 0) {
+      printf("\nQuiting tracker\n");
+      fflush(stdout);
+      exit (0);
+    }
+    else{
+      //printf("\nRecv\n");
+      fflush(stdout);
+      len =recvfrom(udpfd, (void*)msg, 1500 ,0, (struct sockaddr *)&remaddr, &addrlen);
+      
+      printf("\t\t%d", ntohs(remaddr.sin_port));
+      
+      fflush(stdout);
+      respond_query(remaddr, msg, rsp);
+      
+      len =sendto(udpfd, (void *)rsp, 1500, 0, (struct sockaddr *)&remaddr, sizeof(struct sockaddr_in));
+      //    printf("\nassignlen = %d", len);
     
-    fflush(stdout);
-    respond_query(remaddr, msg, rsp);
-    
-    len =sendto(udpfd, (void *)rsp, 1500, 0, (struct sockaddr *)&remaddr, sizeof(struct sockaddr_in));
-    //    printf("\nassignlen = %d", len);
-    
-    /*
-    pthread_t thread;
-    printf("\nGot incoming connection\n");
-    pthread_create(&thread, NULL, (void *)&respond_query, (void *) &clientfd);
-    */
+      /*
+	pthread_t thread;
+	printf("\nGot incoming connection\n");
+	pthread_create(&thread, NULL, (void *)&respond_query, (void *) &clientfd);
+      */
+    }
   }
   
   printf("\nconnection\n");	

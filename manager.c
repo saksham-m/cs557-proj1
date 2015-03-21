@@ -241,6 +241,7 @@ void spawn_client(int node_id)
   memcpy(&ptr->node_config, &basic_config.node_config[node_id], sizeof(struct node_config_t));
   
   ptr->tracker_port = htonl(basic_config.tracker_port);
+  ptr->timeout = basic_config.timeout;
 
   
   // printf("\nsending =%d - %d - %d - %d", ntohl(ptr->node_config.node_id),  ntohl(ptr->node_config.delay),  ntohl(ptr->node_config.drop_probability), ntohl( ptr->tracker_port));
