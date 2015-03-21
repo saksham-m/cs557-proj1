@@ -216,12 +216,13 @@ int main(int argc, char *argv[])
   
     len =recvfrom(udpfd, (void*)msg, 1500 ,0, (struct sockaddr *)&remaddr, &addrlen);
 
+    //    printf("\t\t%d", ntohs(remaddr.sin_port));
     
     fflush(stdout);
     respond_query(remaddr, msg, rsp);
     
     len =sendto(udpfd, (void *)rsp, 1500, 0, (struct sockaddr *)&remaddr, sizeof(struct sockaddr_in));
-    printf("\nassignlen = %d", len);
+    //    printf("\nassignlen = %d", len);
     
     /*
     pthread_t thread;

@@ -5,6 +5,8 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+int udpfd;
+
 void start()
 {
 	struct timeval tmv;
@@ -61,7 +63,7 @@ void start()
 void recv_config(int p)
 {
 
-  int socketfd,udpfd;
+  int socketfd;
   struct sockaddr_in serverIp, myaddr;
 
   socketfd = socket (AF_INET, SOCK_STREAM, 0);
@@ -91,7 +93,49 @@ void recv_config(int p)
   node_config.tracker_port = ntohl(ptr->tracker_port);
   memcpy(&node_config.node_config, &ptr->node_config, sizeof(struct node_config_t));
   //  printf("\n%d - %d - %d - %d - %s", node_config.node_config.node_id,  node_config.node_config.delay,  node_config.node_config.drop_probability,  node_config.tracker_port, node_config.node_config.initfiles[0].filename);
+
+    
+  struct sockaddr_in  transferIp;
+  udpfd = socket (AF_INET, SOCK_DGRAM, 0);
+
+  if (udpfd < 0) {
+    printf("Failed to create socket");
+    exit(0);
+  }
   
+  memset(&transferIp, '0', sizeof(serverIp));
+  
+  transferIp.sin_family = AF_INET;
+  transferIp.sin_addr.s_addr = htonl(INADDR_ANY);
+  transferIp.sin_port = 0; 
+
+
+  if( bind(udpfd, (struct sockaddr*)&transferIp, sizeof(transferIp)) < 0 ) {
+    printf("Failed to bind socket");
+    exit(0);
+  }
+  char outbuf[50];
+  struct sockaddr_in adr_inet;
+  int len_inet, val;
+
+  getsockname(udpfd, (struct sockaddr *)&adr_inet, &len_inet);
+  
+  sprintf(outbuf,"%d.out",node_config.node_config.node_id);
+  client_out = fopen(outbuf,"wb");
+
+  fprintf( client_out,"type Client\n");
+
+  sprintf(outbuf,"myID %d", node_config.node_config.node_id);
+  fprintf( client_out,"%s\n", outbuf);
+
+  sprintf(outbuf,"pid %d", getpid());
+  fprintf( client_out,"%s\n", outbuf);
+
+  sprintf(outbuf,"tracker port %d", node_config.tracker_port);
+  fprintf( client_out,"%s\n", outbuf);
+
+  fflush(client_out);
+
 }
 
 void accept_file_req(int index, char *msg, char*msg2, int seed)
@@ -228,7 +272,7 @@ int get_group_data(int index)
   char msg2[1500]= {0};
   int i=0,len=0;
   struct group_data_t group_data;
-  struct sockaddr_in remaddr;
+  struct sockaddr_in remaddr, serverIp;
   socklen_t addrlen = sizeof(remaddr);  
   struct group_interest_preamble_t *ptr = (struct group_interest_preamble_t *) msg;
   struct group_interest_pkt_t *ptr2;
@@ -236,63 +280,27 @@ int get_group_data(int index)
   struct group_assign_pkt_t* rsp;
   int flag = 0;
   FILE *file_write;
-
-  printf("\nlaunching\n");
-  	  
   
-  struct sockaddr_in serverIp, transferIp;
-  int udpfd = socket (AF_INET, SOCK_DGRAM, 0);
-
-  struct file_data_t file_data;
-  memset(&file_data, 0, sizeof(file_data));
-    
-  if (udpfd < 0) {
-    printf("Failed to create socket");
-    exit(0);
-  }
-  
-  memset(&transferIp, '0', sizeof(serverIp));
-  
-  transferIp.sin_family = AF_INET;
-  transferIp.sin_addr.s_addr = htonl(INADDR_ANY);
-  transferIp.sin_port = 0; 
-
-  /*
-  if( bind(udpfd, (struct sockaddr*)&transferIp, sizeof(transferIp)) < 0 ) {
-    printf("Failed to bind socket");
-    exit(0);
-  }
-  */
-
-  if( bind(udpfd, (struct sockaddr*)&transferIp, sizeof(transferIp)) < 0 ) {
-    printf("Failed to bind socket");
-    exit(0);
-  }
   char outbuf[50];
+  
   struct sockaddr_in adr_inet;
   int len_inet, val;
-  char port[8] = {0};
+
   getsockname(udpfd, (struct sockaddr *)&adr_inet, &len_inet);
-  
-  sprintf(outbuf,"%d.out",node_config.node_config.node_id);
-  client_out = fopen(outbuf,"wb");
-
-  fprintf( client_out,"type Client\n");
-
-  sprintf(outbuf,"myID %d", node_config.node_config.node_id);
-  fprintf( client_out,"%s\n", outbuf);
-
-  sprintf(outbuf,"pid %d", getpid());
-  fprintf( client_out,"%s\n", outbuf);
-
-  sprintf(outbuf,"tracker port %d", node_config.tracker_port);
-  fprintf( client_out,"%s\n", outbuf);
 
   sprintf(outbuf,"my port %d", ntohs(adr_inet.sin_port));
   fprintf( client_out,"%s\n", outbuf);
 
   fflush(client_out);
   
+  //printf("\nlaunching\n");
+  	  
+  
+  struct file_data_t file_data;
+  memset(&file_data, 0, sizeof(file_data));
+
+
+
  top:
 
   memset(&serverIp, '0', sizeof(serverIp));
@@ -367,7 +375,7 @@ int get_group_data(int index)
       group_data.node_data[i].node_ip =  node_ptr->node_ip;
       group_data.node_data[i].node_port = node_ptr->node_port;
       
-      //   printf("\n final groups: %s %d %d %d\n\n\n", node_config.node_config.files[index].filename, group_data.node_data[i].node_id, group_data.node_data[i].node_ip, group_data.node_data[i].node_port);
+      //printf("\n final groups: %s %d %d %d\n\n\n", node_config.node_config.files[index].filename, group_data.node_data[i].node_id, group_data.node_data[i].node_ip, group_data.node_data[i].node_port);
 
        fflush(stdout);
        
@@ -531,7 +539,7 @@ int main(int argc, char *argv[])
   p = atoi(argv[1]);
   recv_config(p);
   int (*fp)();
-
+  
   fp = get_group_data;
   //Add timers to my files
 
