@@ -156,7 +156,7 @@ void accept_file_req(int index, char *msg, char*msg2, int seed)
 	//	printf("here");
 	char name[50] = {0};
 	time(&end);
-	sprintf(name, "%f %d-%s", difftime (end,strt), node_config.node_config.node_id, node_config.node_config.files[index].filename);
+	sprintf(name,"%d-%s", node_config.node_config.node_id, node_config.node_config.files[index].filename);
 
 	 fflush(stdout);
 
@@ -303,7 +303,7 @@ int get_group_data(int index)
   	  
   
   struct file_data_t file_data;
-  memset(&file_data, 0, sizeof(file_data));
+  memset(&file_data, -1, sizeof(file_data));
 
 
  top:
@@ -348,6 +348,7 @@ int get_group_data(int index)
     
   }
   
+  usleep(node_config.node_config.delay*1000);
   len = sendto(udpfd, (void *)msg, 1500, 0, (struct sockaddr *)&serverIp, sizeof(struct sockaddr_in));
 
   fflush(stdout);
@@ -410,7 +411,7 @@ int get_group_data(int index)
        serverIp.sin_port = group_data.node_data[i].node_port;
 
        //printf("sending= %d\n", pkt->msg_type);
-       
+       	usleep(node_config.node_config.delay*1000);
        len =  sendto(udpfd, (void *)msg2, 1500, 0, (struct sockaddr *)&serverIp, sizeof(struct sockaddr_in));
        time(&end);
        sprintf(outbuf, "%f To %d    SEG_REQ - %s", difftime (end,strt), node_ptr->node_id, node_config.node_config.files[index].filename);
@@ -437,11 +438,21 @@ int get_group_data(int index)
 
 	 fflush(client_out);
 	 int n = ceil(file_data.size/32);
-	 printf("\n\nnumsegs = %d", n);
+
 	 file_data.seg = n;
 	 for(i=0;i<=n;i++){
-	   if(file_data.fdat[i].have == 0 && pkt->type == 1){  //Type seed has packets
-	     file_data.fdat[i].id = pkt->node_id;
+	   if(file_data.fdat[i].have == -1 && pkt->type == 1){  //Type seed has packets
+	     if(file_data.fdat[i].id == -1)
+	       file_data.fdat[i].id = pkt->node_id;	       
+	     //	     printf("1");
+	     else {
+	       int toss=0;
+	       srand(time(NULL));
+	       toss = rand() % 2;
+	       if(toss){
+		 file_data.fdat[i].id = pkt->node_id; // Replace id 50% of the time.
+	       }
+	     }
 	   }
 	 }
        }
@@ -452,7 +463,7 @@ int get_group_data(int index)
       f=0;
       //      printf("\nlooping\n");
       while(cnt<=file_data.seg){
-	if(file_data.fdat[cnt].have == 0 && file_data.fdat[cnt].id!=0){
+	if(file_data.fdat[cnt].have == -1 && file_data.fdat[cnt].id!=-1){
 	  f=1;
 
 	  f2=0;
@@ -476,6 +487,7 @@ int get_group_data(int index)
 	  
 	  // printf("sending= %d\n", pkt->msg_type);
 	  //printf("\n%d,%d,%d\n",ntohs(serverIp.sin_port)m, cnt, file_data.fdat[cnt].id);
+	  usleep(node_config.node_config.delay*1000);
 	  len =  sendto(udpfd, (void *)msg2, 1500, 0, (struct sockaddr *)&serverIp, sizeof(struct sockaddr_in));
 	  time(&end);
 	  sprintf(outbuf, "%f To %d    FILE_REQ - %s - %d",difftime (end,strt), group_data.node_data[i].node_id, node_config.node_config.files[index].filename, cnt);
@@ -497,6 +509,8 @@ int get_group_data(int index)
 	      return 0;
 	    flag =1;
 	  }
+
+	  
 	  
 	  len = recvfrom(udpfd, (void*)msg,1500 ,0, (struct sockaddr *)&remaddr, &addrlen);
 	  //printf("rcv=%d from %d no %d\n", len, ntohs(remaddr.sin_port), cnt);
@@ -521,7 +535,7 @@ int get_group_data(int index)
 	if(f2 == 4){
 	  int bit=0;
 	  for(i=0;i<file_data.seg;i++){
-	    if (file_data.fdat[i].have ==0){
+	    if (file_data.fdat[i].have ==-1){
 	      bit=1;
 	    }
 	    if(bit)
@@ -540,7 +554,7 @@ int get_group_data(int index)
       }
     }
     for(i=0;i<file_data.seg;i++){
-      if (file_data.fdat[i].have ==0){
+      if (file_data.fdat[i].have ==-1){
 	//	printf("\nNot complete. Top\n");
 
 	goto top;
@@ -582,7 +596,7 @@ int get_group_data(int index)
       accept_file_req(index, msg, msg2, 1);
       pkt = (struct client_pkt_t *)msg2;
       //printf("\nSending : %d, %d, %d\n", pkt->msg_type, pkt->type, pkt->filesize);
-      
+
       sendto(udpfd, (void *)msg2, 1500, 0, (struct sockaddr *)&serverIp, sizeof(struct sockaddr_in));
     }
   }
@@ -594,7 +608,7 @@ int get_group_data(int index)
   fprintf(client_out, "%s\n",outbuf);
 
   strncpy(node_config.node_config.initfiles[8].filename, node_config.node_config.files[index].filename,32);
-  printf("\nadding ");
+
   goto top;
   
   fclose(client_out);
@@ -631,6 +645,7 @@ int main(int argc, char *argv[])
 }
 
 
-// add random chance
+
+
 // add delay
 // add drop prob
