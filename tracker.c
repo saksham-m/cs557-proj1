@@ -45,6 +45,8 @@ int respond_query(struct sockaddr_in adr_inet, char *msg, char *msg2)
       for(j=0;j<tracker_data[i].num_neighbours;j++){
 	if(tracker_data[i].node_data[j].node_id == node){
 	  //Data exists. Donot add it again.
+	  tracker_data[i].node_data[j].type = ptr1->type;
+	  printf("\n\t\tChanged %d to type %d\n", tracker_data[i].node_data[j].node_id , tracker_data[i].node_data[j].type );
 	  goto exit_loop;
 	}
       }
@@ -67,6 +69,7 @@ int respond_query(struct sockaddr_in adr_inet, char *msg, char *msg2)
       tracker_data[i].node_data[n].node_id = node;
       tracker_data[i].node_data[n].node_ip = ntohl(adr_inet.sin_addr.s_addr);
       tracker_data[i].node_data[n].node_port = ntohs(adr_inet.sin_port);
+      tracker_data[i].node_data[n].type = ptr1->type;
       printf("\nGetting port = %d,%d\n",  tracker_data[i].node_data[n].node_port,node);
 
       break;
@@ -101,28 +104,40 @@ int respond_query(struct sockaddr_in adr_inet, char *msg, char *msg2)
   int n = tracker_data[i].num_neighbours + 1;
   int num =n;
 
+  for(int k=0;k<n;k++){
+    //    printf("\n\t\t%d,%d,%d", tracker_data[i].node_data[k].node_id, tracker_data[i].node_data[k].node_port,  tracker_data[i].node_data[k].type);
+  }
+  
   struct node_info_pkt_t *node_ptr;
-  for(j=0;j<n;j++){
-    if(tracker_data[i].node_data[j].type == LEECH || tracker_data[i].node_data[j].node_id == node){
+  for(int k=0, j=0;j<n;j++){
+    
+    if(tracker_data[i].node_data[j].type != SEED || tracker_data[i].node_data[j].node_id == node){
       num--;
       continue;
     }
     
-    node_ptr = (struct node_info_pkt_t *)(msg2 + sizeof(struct group_assign_pkt_t) + i*sizeof(struct node_info_pkt_t));
+    node_ptr = (struct node_info_pkt_t *)(msg2 + sizeof(struct group_assign_pkt_t) + k*sizeof(struct node_info_pkt_t));
 
+    k++;
     node_ptr->node_id = tracker_data[i].node_data[j].node_id;
     node_ptr->node_ip = htonl(tracker_data[i].node_data[j].node_ip);
     node_ptr->node_port = htons(tracker_data[i].node_data[j].node_port);
-    
   }
 
   rsp->num_neighbours = htons(num);
+
+  printf("\n\tnum = %d\n", num);
   
-  for(i=0;i<1500;i++){
-    if(msg2[i] == 0 && msg2[i+1]==0 && msg2[i+2] == 0 && msg2[i+3] == 0)
-      break;
+  for(i=0;i<sizeof(struct group_assign_pkt_t) + num*sizeof(struct node_info_pkt_t);i++){
     fprintf(tracker_out, "%02x ", msg2[i]);
-  }
+    }
+  /*char buf9[1500];
+  strncpy(buf9, msg2, sizeof(struct node_info_pkt_t) + num*sizeof(struct node_info_pkt_t));
+
+  printf("\n%d- %s", sizeof(struct node_info_pkt_t) + num*sizeof(struct node_info_pkt_t), buf9);
+
+  fprintf(tracker_out,"%s\n", buf9);
+  */
   fprintf(tracker_out,"\n");
   fflush(tracker_out);
   return 0;

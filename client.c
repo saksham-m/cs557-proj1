@@ -209,9 +209,8 @@ void accept_file_req(int index, char *msg, char*msg2, int seed)
       sprintf(outbuf, "%f From %d    FILE_REQ - %s - %d",difftime (end,strt), ptr->node_id, node_config.node_config.files[index].filename, ptr->seg_num);
       
       fprintf( client_out,"%s\n", outbuf);
-	  
-      if(seed){
 
+      if(seed){
 	char name[50] = {0};
 	time(&end);
 	sprintf(name, "%d-%s", node_config.node_config.node_id, node_config.node_config.files[index].filename);
@@ -220,13 +219,15 @@ void accept_file_req(int index, char *msg, char*msg2, int seed)
 
        	file_read = fopen(name, "rb");
 	
-	if(file_read == NULL)
+	if(file_read == NULL){
+	  printf("\nCouldnt read file: %s\n", name);
 	  return ;
+	}
 	stat(name, &st);
 
 	file_size = st.st_size;
 	int seg_num = ptr->seg_num;
-	printf("\nseg= %d\n",seg_num);
+	//	printf("\nseg= %d\n",seg_num);
 	//printf("file details: %d,%s",file_size,name);
 	if(ceil(file_size/32) == seg_num){
 	  //last segment
@@ -362,15 +363,12 @@ int get_group_data(int index)
   fprintf(client_out, "%s\n", outbuf);
 
   fflush(client_out);
-  printf("\nsenlen=%d",len);
   
   if( ptr2->type != 3 ){
     //NOT SEED 
     memset(msg,0,1500);
     len = recvfrom(udpfd, (void*)msg,1500 ,0, (struct sockaddr *)&remaddr, &addrlen);
 
-    printf("\nrcvlen %d", len);
-       
     //build group table. File index + node_id + node_ip + node_port
     time(&end);
     sprintf(outbuf, "%f FROM T    GROUP_ASSIGN -" ,difftime (end,strt));
@@ -389,6 +387,7 @@ int get_group_data(int index)
       fprintf(" %d ", node_ptr->node_id);
     }
     */
+    printf("\n\n\tneigh= %d", group_data.num_neighbours);
     for(i=0;i<group_data.num_neighbours;i++){
       node_ptr = (struct node_info_pkt_t *)(msg + sizeof(struct group_assign_pkt_t) + i*sizeof(struct node_info_pkt_t));
       
@@ -396,7 +395,18 @@ int get_group_data(int index)
       group_data.node_data[i].node_ip =  node_ptr->node_ip;
       group_data.node_data[i].node_port = node_ptr->node_port;
       
-      printf("\n final groups: %s %d %d %d\n\n\n", node_config.node_config.files[index].filename, group_data.node_data[i].node_id, group_data.node_data[i].node_ip, group_data.node_data[i].node_port);
+      printf("\n final groups: %s %d %d %d\n", node_config.node_config.files[index].filename, group_data.node_data[i].node_id, group_data.node_data[i].node_ip, group_data.node_data[i].node_port);
+
+    }
+    for(i=0;i<group_data.num_neighbours;i++){
+      printf("\nloop= %d",i);
+      /*   node_ptr = (struct node_info_pkt_t *)(msg + sizeof(struct group_assign_pkt_t) + i*sizeof(struct node_info_pkt_t));
+      
+      group_data.node_data[i].node_id = node_ptr->node_id;
+      group_data.node_data[i].node_ip =  node_ptr->node_ip;
+      group_data.node_data[i].node_port = node_ptr->node_port;
+      */
+      //printf("\n final groups: %s %d %d %d\n\n\n", node_config.node_config.files[index].filename, group_data.node_data[i].node_id, group_data.node_data[i].node_ip, group_data.node_data[i].node_port);
 
        fflush(stdout);
        
@@ -416,12 +426,12 @@ int get_group_data(int index)
        	usleep(node_config.node_config.delay*1000);
        len =  sendto(udpfd, (void *)msg2, 1500, 0, (struct sockaddr *)&serverIp, sizeof(struct sockaddr_in));
        time(&end);
-       sprintf(outbuf, "%f To %d    SEG_REQ - %s", difftime (end,strt), node_ptr->node_id, node_config.node_config.files[index].filename);
+       sprintf(outbuf, "%f To %d    SEG_REQ - %s", difftime (end,strt), group_data.node_data[i].node_id, node_config.node_config.files[index].filename);
        fprintf( client_out,"%s\n", outbuf);
        
       //printf("snd=%d\n", len);
        fflush(stdout);
-       memset(msg2,0,1500);
+       memset(msg,0,1500);
 
        len = recvfrom(udpfd, (void*)msg,1500 ,0, (struct sockaddr *)&remaddr, &addrlen);
 
@@ -429,7 +439,7 @@ int get_group_data(int index)
        //printf("rcv=%d from %d\n", len, ntohs(remaddr.sin_port));
        fflush(stdout);
        pkt = (struct client_pkt_t*)msg;
-       //printf("\nRecieveing : %d, %d, %d\n", pkt->msg_type, pkt->type, pkt->filesize);
+       printf("\nRecieveing : %d, %d, %d\n", pkt->node_id, pkt->type, pkt->filesize);
 
        if(pkt->msg_type == SEG_UPDATE){
 	 time(&end);
@@ -442,16 +452,20 @@ int get_group_data(int index)
 	 int n = ceil(file_data.size/32);
 
 	 file_data.seg = n;
-	 for(i=0;i<=n;i++){
-	   if(file_data.fdat[i].have == -1 && pkt->type == 1){  //Type seed has packets
-	     if(file_data.fdat[i].id == -1)
-	       file_data.fdat[i].id = pkt->node_id;	       
-	     //	     printf("1");
+	 for(int j=0;j<=n;j++){
+	   if(file_data.fdat[j].have == -1 && pkt->type == 1){  //Type seed has packets
+	     if(file_data.fdat[j].id == -1){
+	       file_data.fdat[j].id = pkt->node_id;
+	     }
+
+	     else if(file_data.fdat[j].id == pkt->node_id)
+	       ;
+	     
 	     else {
 	       int toss=0;
 	       toss = rand() % 2;
 	       if(toss){
-		 file_data.fdat[i].id = pkt->node_id; // Replace id 50% of the time.
+		 file_data.fdat[j].id = pkt->node_id; // Replace id 50% of the time.
 	       }
 	     }
 	   }
