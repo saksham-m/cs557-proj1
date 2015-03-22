@@ -1,9 +1,10 @@
-
 #include "common.h"
 #include "client.h"
 #include "timers-c.h"
 #include <sys/stat.h>
 #include <errno.h>
+
+time_t strt,end;
 
 int udpfd;
 
@@ -97,30 +98,7 @@ void recv_config(int p)
   //  printf("\n%d - %d - %d - %d - %s", node_config.node_config.node_id,  node_config.node_config.delay,  node_config.node_config.drop_probability,  node_config.tracker_port, node_config.node_config.initfiles[0].filename);
 
     
-  struct sockaddr_in  transferIp;
-  udpfd = socket (AF_INET, SOCK_DGRAM, 0);
-
-  if (udpfd < 0) {
-    printf("Failed to create socket");
-    exit(0);
-  }
-  
-  memset(&transferIp, '0', sizeof(serverIp));
-  
-  transferIp.sin_family = AF_INET;
-  transferIp.sin_addr.s_addr = htonl(INADDR_ANY);
-  transferIp.sin_port = 0; 
-
-
-  if( bind(udpfd, (struct sockaddr*)&transferIp, sizeof(transferIp)) < 0 ) {
-    printf("Failed to bind socket");
-    exit(0);
-  }
-  char outbuf[50];
-  struct sockaddr_in adr_inet;
-  int len_inet, val;
-
-  getsockname(udpfd, (struct sockaddr *)&adr_inet, &len_inet);
+  char outbuf[150];
   
   sprintf(outbuf,"%d.out",node_config.node_config.node_id);
   client_out = fopen(outbuf,"wb");
@@ -168,14 +146,17 @@ void accept_file_req(int index, char *msg, char*msg2, int seed)
       ptr2->msg_type = SEG_UPDATE;
       ptr2->type = seed;
 
-      sprintf(outbuf, "From %d    SEG_REQ - %s", ptr->node_id, node_config.node_config.files[index].filename);
+      
+      time(&end);
+      sprintf(outbuf, "%f From %d    SEG_REQ - %s", difftime (end,strt), ptr->node_id, node_config.node_config.files[index].filename);
       fprintf( client_out,"%s\n", outbuf);
 
       if(seed){
 	//I know file size
 	//	printf("here");
 	char name[50] = {0};
-	sprintf(name, "%d-%s", node_config.node_config.node_id, node_config.node_config.files[index].filename);
+	time(&end);
+	sprintf(name, "%f %d-%s", difftime (end,strt), node_config.node_config.node_id, node_config.node_config.files[index].filename);
 
 	 fflush(stdout);
 
@@ -191,7 +172,8 @@ void accept_file_req(int index, char *msg, char*msg2, int seed)
 	
 	ptr2->filesize = file_size;
 
-	sprintf(outbuf, "To %d    SEG_UPDATE - %s", ptr->node_id, node_config.node_config.files[index].filename);
+	
+	sprintf(outbuf, "%f To %d    SEG_UPDATE - %s", difftime (end,strt), ptr->node_id, node_config.node_config.files[index].filename);
 
 	 fprintf( client_out,"%s\n", outbuf);
       }
@@ -221,14 +203,15 @@ void accept_file_req(int index, char *msg, char*msg2, int seed)
       ptr2->msg_type = FILE_RESP;
       ptr2->type = seed;
       ptr2->node_id = node_config.node_config.node_id;
-
-      sprintf(outbuf, "From %d    FILE_REQ - %s - %d", ptr->node_id, node_config.node_config.files[index].filename, ptr->seg_num);
+      time(&end);
+      sprintf(outbuf, "%f From %d    FILE_REQ - %s - %d",difftime (end,strt), ptr->node_id, node_config.node_config.files[index].filename, ptr->seg_num);
       
       fprintf( client_out,"%s\n", outbuf);
 	  
       if(seed){
 
 	char name[50] = {0};
+	time(&end);
 	sprintf(name, "%d-%s", node_config.node_config.node_id, node_config.node_config.files[index].filename);
 
 	fflush(stdout);
@@ -241,6 +224,7 @@ void accept_file_req(int index, char *msg, char*msg2, int seed)
 
 	file_size = st.st_size;
 	int seg_num = ptr->seg_num;
+	printf("\nseg= %d\n",seg_num);
 	//printf("file details: %d,%s",file_size,name);
 	if(ceil(file_size/32) == seg_num){
 	  //last segment
@@ -253,8 +237,8 @@ void accept_file_req(int index, char *msg, char*msg2, int seed)
 	}
 	ptr2->seg_num = seg_num;	
 	fread(ptr2->msg, sizeof(char), ptr2->len, file_read);
-
-	sprintf(outbuf, "To %d    FILE_RESP - %s - %d", ptr->node_id, node_config.node_config.files[index].filename, ptr->seg_num);
+	time(&end);
+	sprintf(outbuf, "%f To %d    FILE_RESP - %s - %d", difftime (end,strt), ptr->node_id, node_config.node_config.files[index].filename, ptr->seg_num);
 
 	fprintf( client_out,"%s\n", outbuf);
 	 
@@ -267,14 +251,12 @@ void accept_file_req(int index, char *msg, char*msg2, int seed)
 int get_group_data(int index)
 {
   //send file stuff to tracker and recieve group data
-
-
   
   char msg[1500]= {0};
   char msg2[1500]= {0};
   int i=0,len=0;
   struct group_data_t group_data;
-  struct sockaddr_in remaddr, serverIp;
+  struct sockaddr_in remaddr, serverIp, transferIp;
   socklen_t addrlen = sizeof(remaddr);  
   struct group_interest_preamble_t *ptr = (struct group_interest_preamble_t *) msg;
   struct group_interest_pkt_t *ptr2;
@@ -283,8 +265,29 @@ int get_group_data(int index)
   int flag = 0;
   FILE *file_write;
   int cnt = 0,f=0,f2=0;
+  double diff;
   
-  char outbuf[50];
+  char outbuf[150];
+  
+  udpfd = socket (AF_INET, SOCK_DGRAM, 0);
+
+  if (udpfd < 0) {
+    printf("Failed to create socket");
+    exit(0);
+  }
+  
+  memset(&transferIp, '0', sizeof(serverIp));
+  
+  transferIp.sin_family = AF_INET;
+  //  transferIp.sin_addr.s_addr = htonl(INADDR_ANY);
+  inet_pton(AF_INET, "127.0.0.1", &(transferIp.sin_addr));
+  transferIp.sin_port = 0; 
+
+  if( bind(udpfd, (struct sockaddr*)&transferIp, sizeof(transferIp)) < 0 ) {
+    printf("Failed to bind socket");
+    exit(0);
+  }
+
   
   struct sockaddr_in adr_inet;
   int len_inet, val;
@@ -329,31 +332,45 @@ int get_group_data(int index)
     //SEED if already have file
     for(i=0;i<MAX_FILES;i++){
       if(strncmp( node_config.node_config.files[index].filename,  node_config.node_config.initfiles[i].filename,32) == 0){
-
+	printf("\nseeding");
 	ptr2->type =3;
 	memset(&file_data, 1, sizeof(file_data));
       }
     }
   }
+  else {
+    // File complete and not sharing.quit
+    for(i=0;i<MAX_FILES;i++){
+      if(strncmp( node_config.node_config.files[index].filename,  node_config.node_config.initfiles[i].filename,32) == 0){
+	exit(0);
+      }
+    }
+    
+  }
   
   len = sendto(udpfd, (void *)msg, 1500, 0, (struct sockaddr *)&serverIp, sizeof(struct sockaddr_in));
 
-
   fflush(stdout);
-  sprintf(outbuf, "To T    GROUP_SHOW_INTEREST - %s", node_config.node_config.files[index].filename);
+  time (&end);
+  diff = difftime(end,strt);
+  
+  sprintf(outbuf, "%d To T    GROUP_SHOW_INTEREST - %s",(int)diff, node_config.node_config.files[index].filename);
+  
   fprintf(client_out, "%s\n", outbuf);
 
   fflush(client_out);
+  printf("\nsenlen=%d",len);
   
   if( ptr2->type != 3 ){
     //NOT SEED 
     memset(msg,0,1500);
     len = recvfrom(udpfd, (void*)msg,1500 ,0, (struct sockaddr *)&remaddr, &addrlen);
 
+    printf("\nrcvlen %d", len);
        
     //build group table. File index + node_id + node_ip + node_port
-
-    sprintf(outbuf, "FROM T    GROUP_ASSIGN -" );
+    time(&end);
+    sprintf(outbuf, "%f FROM T    GROUP_ASSIGN -" ,difftime (end,strt));
     
     fprintf( client_out,"%s\n", outbuf);
 
@@ -376,7 +393,7 @@ int get_group_data(int index)
       group_data.node_data[i].node_ip =  node_ptr->node_ip;
       group_data.node_data[i].node_port = node_ptr->node_port;
       
-      //printf("\n final groups: %s %d %d %d\n\n\n", node_config.node_config.files[index].filename, group_data.node_data[i].node_id, group_data.node_data[i].node_ip, group_data.node_data[i].node_port);
+      printf("\n final groups: %s %d %d %d\n\n\n", node_config.node_config.files[index].filename, group_data.node_data[i].node_id, group_data.node_data[i].node_ip, group_data.node_data[i].node_port);
 
        fflush(stdout);
        
@@ -395,8 +412,8 @@ int get_group_data(int index)
        //printf("sending= %d\n", pkt->msg_type);
        
        len =  sendto(udpfd, (void *)msg2, 1500, 0, (struct sockaddr *)&serverIp, sizeof(struct sockaddr_in));
-
-       sprintf(outbuf, "To %d    SEG_REQ - %s", node_ptr->node_id, node_config.node_config.files[index].filename);
+       time(&end);
+       sprintf(outbuf, "%f To %d    SEG_REQ - %s", difftime (end,strt), node_ptr->node_id, node_config.node_config.files[index].filename);
        fprintf( client_out,"%s\n", outbuf);
        
       //printf("snd=%d\n", len);
@@ -412,13 +429,15 @@ int get_group_data(int index)
        //printf("\nRecieveing : %d, %d, %d\n", pkt->msg_type, pkt->type, pkt->filesize);
 
        if(pkt->msg_type == SEG_UPDATE){
-	 sprintf(outbuf, "From %d    SEG_UPDATE - %s", pkt->node_id, node_config.node_config.files[index].filename);
+	 time(&end);
+	 sprintf(outbuf, "%f From %d    SEG_UPDATE - %s", difftime (end,strt),  pkt->node_id, node_config.node_config.files[index].filename);
 
 	 fprintf( client_out,"%s\n", outbuf);
 	 file_data.size = pkt->filesize;
 
 	 fflush(client_out);
 	 int n = ceil(file_data.size/32);
+	 printf("\n\nnumsegs = %d", n);
 	 file_data.seg = n;
 	 for(i=0;i<=n;i++){
 	   if(file_data.fdat[i].have == 0 && pkt->type == 1){  //Type seed has packets
@@ -432,7 +451,7 @@ int get_group_data(int index)
       cnt =0;
       f=0;
       //      printf("\nlooping\n");
-      while(cnt<file_data.seg){
+      while(cnt<=file_data.seg){
 	if(file_data.fdat[cnt].have == 0 && file_data.fdat[cnt].id!=0){
 	  f=1;
 
@@ -458,8 +477,8 @@ int get_group_data(int index)
 	  // printf("sending= %d\n", pkt->msg_type);
 	  //printf("\n%d,%d,%d\n",ntohs(serverIp.sin_port)m, cnt, file_data.fdat[cnt].id);
 	  len =  sendto(udpfd, (void *)msg2, 1500, 0, (struct sockaddr *)&serverIp, sizeof(struct sockaddr_in));
-
-	  sprintf(outbuf, "To %d    FILE_REQ - %s - %d", group_data.node_data[i].node_id, node_config.node_config.files[index].filename, cnt);
+	  time(&end);
+	  sprintf(outbuf, "%f To %d    FILE_REQ - %s - %d",difftime (end,strt), group_data.node_data[i].node_id, node_config.node_config.files[index].filename, cnt);
 
 	  fprintf( client_out,"%s\n", outbuf);
 	  //printf("snd req=%d,err= %d\n", len,errno);
@@ -468,6 +487,7 @@ int get_group_data(int index)
 
 	  if(!flag){	  
 	    char name[50] = {0};
+	    time(&end);
 	    sprintf(name, "%d-%s", node_config.node_config.node_id, node_config.node_config.files[index].filename);
 	    
 	    fflush(stdout);
@@ -485,12 +505,13 @@ int get_group_data(int index)
 	  //  printf("\n123Recieveing : %d, segnum = %d\n", pkt->msg_type,pkt->seg_num);
 	  file_data.fdat[pkt->seg_num].have =1;
 
-	  sprintf(outbuf, "From %d    FILE_RESP - %s - %d", pkt->node_id, node_config.node_config.files[index].filename, pkt->seg_num);
-
+	  sprintf(outbuf, "%f From %d    FILE_RESP - %s - %d", difftime (end,strt), pkt->node_id, node_config.node_config.files[index].filename, pkt->seg_num);
+	  
 	  fprintf( client_out,"%s\n", outbuf);
 	  
 	  fseek(file_write, pkt->seg_num*32, SEEK_SET);
 	  fwrite(pkt->msg, sizeof(char), pkt->len, file_write);
+	  fflush(file_write);
 	  break;
 	}
 	cnt++;
@@ -498,12 +519,24 @@ int get_group_data(int index)
       if (!f){
 
 	if(f2 == 4){
-	  return -1;
+	  int bit=0;
+	  for(i=0;i<file_data.seg;i++){
+	    if (file_data.fdat[i].have ==0){
+	      bit=1;
+	    }
+	    if(bit)
+	      return -1;
+	    else{
+	      fprintf(file_write,"\n");
+	      fclose(file_write);
+	    }
+	  }
 	}
-	f2++;
-	sleep(node_config.timeout);
-
-	goto top;
+	else {
+	  f2++;
+	  sleep(node_config.timeout);
+	  goto top;
+	}
       }
     }
     for(i=0;i<file_data.seg;i++){
@@ -555,8 +588,15 @@ int get_group_data(int index)
   }
 
   fclose(file_write);
-  sprintf(outbuf, "Completed %s", node_config.node_config.files[index].filename);
-  fwrite(outbuf, sizeof(char), 150, client_out);
+  time(&end);
+  sprintf(outbuf, "%f Completed %s",difftime (end,strt), node_config.node_config.files[index].filename);
+  
+  fprintf(client_out, "%s\n",outbuf);
+
+  strncpy(node_config.node_config.initfiles[8].filename, node_config.node_config.files[index].filename,32);
+  printf("\nadding ");
+  goto top;
+  
   fclose(client_out);
   //close(udpfd);
   return -1;
@@ -568,6 +608,8 @@ int main(int argc, char *argv[])
 
   int p,i;
   int udpfd;
+
+  time (&strt);
 
   memset(&node_config , -1, sizeof(struct local_node_config_t));
   
@@ -586,5 +628,9 @@ int main(int argc, char *argv[])
   } 
 
   start();
-
 }
+
+
+// add random chance
+// add delay
+// add drop prob

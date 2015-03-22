@@ -55,8 +55,8 @@ struct config_msg_pkt_t {
     
 };
 
-#define GROUP_SHOW_INTEREST 1
-#define GROUP_ASSIGN 2
+#define GROUP_SHOW_INTEREST 5
+#define GROUP_ASSIGN 6
 
 #define LEECH 0
 #define PEER 2

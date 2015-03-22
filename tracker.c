@@ -4,6 +4,7 @@
 #include "tracker.h"
 #include <errno.h>
 
+time_t start,end; 
 
 int respond_query(struct sockaddr_in adr_inet, char *msg, char *msg2)
 {
@@ -76,8 +77,8 @@ int respond_query(struct sockaddr_in adr_inet, char *msg, char *msg2)
 
   // return in case a seed. No need to reply
 
-
-  sprintf(outbuf, "%d - %s", node, filename);
+  time (&end); 
+  sprintf(outbuf, "%d - %f- %s", node,  difftime (end,start) ,filename);
   
   fprintf(tracker_out,"%s\n", outbuf);
 
@@ -135,7 +136,7 @@ int main(int argc, char *argv[])
   int socketfd,udpfd,clientfd;
   struct sockaddr_in serverIp, myaddr, udpIp;
   char outbuf[50];
-  
+  time (&start);
   memset(&tracker_data,0, sizeof(tracker_data));
 
   tracker_out = fopen("tracker.out", "wb");
@@ -237,13 +238,13 @@ int main(int argc, char *argv[])
       fflush(stdout);
       len =recvfrom(udpfd, (void*)msg, 1500 ,0, (struct sockaddr *)&remaddr, &addrlen);
       
-      printf("\t\t%d", ntohs(remaddr.sin_port));
+      //      printf("\t\t%d", ntohs(remaddr.sin_port));
       
       fflush(stdout);
       respond_query(remaddr, msg, rsp);
       
       len =sendto(udpfd, (void *)rsp, 1500, 0, (struct sockaddr *)&remaddr, sizeof(struct sockaddr_in));
-      //    printf("\nassignlen = %d", len);
+      printf("\nassignlen = %d", len);
     
       /*
 	pthread_t thread;
