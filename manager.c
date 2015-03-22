@@ -6,7 +6,8 @@ void parser ()
   char *s, buff[256];
   FILE *fp = fopen (CONFIG, "r");
   int read_count =0;
-  int id=0,delay=0,drop_prob=0,share=0,time=0;
+  int id=0,delay=0,share=0,time=0;
+  float drop_prob =0 ;
   char filename[50];
   
   memset(&basic_config, -1, sizeof(basic_config));
@@ -45,12 +46,12 @@ void parser ()
 	 i =0;
 	while(1) {
 	  //	  printf("stuck");	  
-	  sscanf(buff, "%d %d %d", &id, &delay, &drop_prob);
+	  sscanf(buff, "%d %d %f", &id, &delay, &drop_prob);
 	  if(id == -1) break;
 
 	  basic_config.node_config[i].node_id = id;
 	  basic_config.node_config[i].delay = delay;
-	  basic_config.node_config[i].drop_probability = drop_prob;
+	  basic_config.node_config[i].drop_probability = drop_prob*100;
 	  i++;
 	  fgets (buff, sizeof buff, fp);
 	}
@@ -235,7 +236,6 @@ void spawn_client(int node_id)
   ptr->node_config.node_id = htonl(basic_config.node_config[node_id].node_id);
   ptr->node_config.delay = htonl(basic_config.node_config[node_id].delay);
   ptr->node_config.drop_probability = htonl(basic_config.node_config[node_id].drop_probability);
-
   */
 
   memcpy(&ptr->node_config, &basic_config.node_config[node_id], sizeof(struct node_config_t));

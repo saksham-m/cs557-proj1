@@ -67,6 +67,8 @@ void recv_config(int p)
   int socketfd;
   struct sockaddr_in serverIp, myaddr;
 
+
+
   socketfd = socket (AF_INET, SOCK_STREAM, 0);
   if (socketfd < 0) {
     printf("Failed to create socket");
@@ -93,7 +95,7 @@ void recv_config(int p)
   */
   node_config.tracker_port = ntohl(ptr->tracker_port);
   node_config.timeout = ptr->timeout;
-
+  //printf("\nhere");
   memcpy(&node_config.node_config, &ptr->node_config, sizeof(struct node_config_t));
   //  printf("\n%d - %d - %d - %d - %s", node_config.node_config.node_id,  node_config.node_config.delay,  node_config.node_config.drop_probability,  node_config.tracker_port, node_config.node_config.initfiles[0].filename);
 
@@ -447,7 +449,6 @@ int get_group_data(int index)
 	     //	     printf("1");
 	     else {
 	       int toss=0;
-	       srand(time(NULL));
 	       toss = rand() % 2;
 	       if(toss){
 		 file_data.fdat[i].id = pkt->node_id; // Replace id 50% of the time.
@@ -509,8 +510,20 @@ int get_group_data(int index)
 	      return 0;
 	    flag =1;
 	  }
+	  fd_set readfds1;
+	  int rv;
+	  struct timeval tv1;
+	  tv1.tv_sec = 1;
+	  tv1.tv_usec = 0;
+	  FD_ZERO(&readfds1); 
+	  FD_SET(udpfd, &readfds1);
 
-	  
+	  rv = select(udpfd+1, &readfds1, NULL, NULL, &tv1);
+
+	  if(rv == 0){
+	    cnt++;
+	    continue;
+	  }
 	  
 	  len = recvfrom(udpfd, (void*)msg,1500 ,0, (struct sockaddr *)&remaddr, &addrlen);
 	  //printf("rcv=%d from %d no %d\n", len, ntohs(remaddr.sin_port), cnt);
@@ -596,7 +609,14 @@ int get_group_data(int index)
       accept_file_req(index, msg, msg2, 1);
       pkt = (struct client_pkt_t *)msg2;
       //printf("\nSending : %d, %d, %d\n", pkt->msg_type, pkt->type, pkt->filesize);
+      if(pkt->msg_type == FILE_RESP){
 
+	int num =  rand() % 100;
+	if(num<node_config.node_config.drop_probability){
+	  printf("\n Dropping packet");
+	  continue;
+	}
+      }
       sendto(udpfd, (void *)msg2, 1500, 0, (struct sockaddr *)&serverIp, sizeof(struct sockaddr_in));
     }
   }
@@ -624,7 +644,7 @@ int main(int argc, char *argv[])
   int udpfd;
 
   time (&strt);
-
+  srand(time(NULL));
   memset(&node_config , -1, sizeof(struct local_node_config_t));
   
   p = atoi(argv[1]);
@@ -645,7 +665,3 @@ int main(int argc, char *argv[])
 }
 
 
-
-
-// add delay
-// add drop prob
